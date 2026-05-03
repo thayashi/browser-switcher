@@ -198,3 +198,231 @@ npm run test:rust
 cargo check --manifest-path src-tauri/Cargo.toml
 npm run build
 ```
+
+## 2026-05-03 Follow-Up Session
+
+This section captures the continuation after the chat history/workspace context became long.
+
+### Git Repository Recreated
+
+The renamed workspace did not have a `.git` directory, and the old `default-browser-tray` folder also did not contain one. A new Git repository was initialized in:
+
+```text
+C:\Users\thaya\LocalDocs\dev\browser-switcher
+```
+
+Git author identity was configured globally:
+
+```text
+Toshi Hayashi <thayashing@gmail.com>
+```
+
+Initial repository commits:
+
+```text
+aacbe60 Initial Browser Switcher app
+034283a Hide console window in release builds
+f8a72ce Apply Browser Switcher icon set
+73d2a42 Fix Windows executable icon resource
+b2f4801 Bump version for icon update
+3ad95b3 Enforce single app instance
+2c7d5ea Refresh tray icon on duplicate launch
+```
+
+`.gitignore` excludes:
+
+```text
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+```
+
+### Release Console Window Fix
+
+The first MSI-installed app opened a terminal-like console window. Closing that window also killed the app.
+
+Root cause:
+
+- The Windows release binary was built with the default console subsystem.
+
+Fix:
+
+```rust
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+```
+
+This was added at the top of `src-tauri/src/main.rs`, so release builds use the Windows GUI subsystem while debug/dev builds can still expose logs if needed.
+
+### App Icon Work
+
+New icon source files were added under:
+
+```text
+icon-designs/
+```
+
+The selected app icon source was:
+
+```text
+icon-designs/ver2/icons-light/
+```
+
+Applied generated assets under:
+
+```text
+src-tauri/icons/
+```
+
+Important note:
+
+- The first generated `icon.ico` used PNG-compressed ICO entries.
+- The ICO file itself looked valid, but Windows resource embedding produced a bad/default icon in `browser-switcher.exe`.
+- The fix was to regenerate `src-tauri/icons/icon.ico` as a Windows-compatible uncompressed DIB/BMP multi-size ICO.
+
+Confirmed executable icon resource contains:
+
+```text
+16x16
+20x20
+24x24
+32x32
+40x40
+48x48
+64x64
+128x128
+256x256
+```
+
+Verification used Windows icon extraction from the built executable and confirmed the new icon could be extracted from:
+
+```text
+src-tauri/target/release/browser-switcher.exe
+```
+
+### Windows UI Icon Cache Notes
+
+Different Windows UI surfaces read icons from different places:
+
+- Tray menu runtime icon: Tauri runtime/default window icon.
+- Start menu entry: installer shortcut / Windows Installer icon table / app executable.
+- Startup Apps and taskbar notification settings: Windows notification area cache and installed executable metadata.
+
+The Start menu icon was fixed after the executable icon resource and installer version were updated.
+
+The taskbar notification settings icon may retain stale cached entries until:
+
+- the app process is fully quit,
+- the app is updated with a higher version,
+- Explorer or Windows is restarted,
+- or Windows refreshes notification area cache.
+
+### Version Bumps
+
+The app version was bumped during this work to force Windows Installer to replace installed files and refresh shortcut/icon metadata:
+
+```text
+0.1.0 -> 0.1.1
+0.1.1 -> 0.1.2
+0.1.2 -> 0.1.3
+```
+
+Current version at the end of this section:
+
+```text
+0.1.3
+```
+
+Latest generated installers:
+
+```text
+src-tauri/target/release/bundle/msi/Browser Switcher_0.1.3_x64_en-US.msi
+src-tauri/target/release/bundle/nsis/Browser Switcher_0.1.3_x64-setup.exe
+```
+
+### Singleton Behavior
+
+Multiple instances could initially be launched, producing multiple tray processes/icons.
+
+Fix:
+
+- Added `tauri-plugin-single-instance = "2"`.
+- Registered the plugin in `src-tauri/src/main.rs`.
+- Duplicate launches no longer leave a new process running.
+
+Current duplicate-launch behavior:
+
+- Existing instance remains running.
+- New process exits.
+- Existing instance receives the duplicate-launch callback.
+- Existing instance refreshes/re-registers the tray icon.
+- About window is shown/focused.
+
+This matters because after singleton support was added, a second launch no longer rebuilt the tray icon by creating a new process. If Windows lost or hid the tray icon, duplicate launch needed to explicitly refresh the existing tray icon.
+
+### Tray Re-Registration Fix
+
+After adding singleton support, Browser Switcher could show as enabled in Windows notification settings but not appear in the taskbar tray.
+
+Hypothesis:
+
+- Before singleton, launching again created a new process and therefore a new tray icon.
+- After singleton, launching again only notified the existing process, so the tray icon was not recreated.
+
+Fix:
+
+- Extracted tray creation into `build_tray_icon`.
+- Added `refresh_tray_icon`.
+- On duplicate launch, the app removes any existing tray icon by id and rebuilds it.
+
+Relevant behavior:
+
+```text
+duplicate launch -> refresh_tray_icon(app) -> show_about(app)
+```
+
+### Verification Completed On 2026-05-03
+
+Repeated verification commands passed during the session:
+
+```powershell
+cargo check --manifest-path src-tauri\Cargo.toml
+npm run test:rust
+npm run build
+```
+
+Latest Rust test count:
+
+```text
+14 passed
+```
+
+Singleton was manually measured by starting the release executable twice and confirming the process count stayed at one:
+
+```text
+BeforeCount: 0
+AfterTwoLaunchesCount: 1
+```
+
+### Current Manual Test Guidance
+
+Before installing a new build:
+
+1. Quit Browser Switcher from the tray menu if visible.
+2. If not visible, use Task Manager or PowerShell to ensure all `browser-switcher.exe` processes are stopped.
+3. Install the latest MSI or NSIS setup:
+
+```text
+Browser Switcher_0.1.3_x64_en-US.msi
+Browser Switcher_0.1.3_x64-setup.exe
+```
+
+After installing:
+
+1. Launch Browser Switcher once.
+2. Confirm there is only one `browser-switcher.exe` process.
+3. Confirm the tray icon appears.
+4. Launch Browser Switcher again from Start menu.
+5. Confirm a second process does not remain.
+6. Confirm the About window appears and the tray icon remains available.
+
+If Windows notification settings still show stale icon behavior, restart Explorer or Windows before treating it as an app bug.
