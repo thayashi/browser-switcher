@@ -27,6 +27,7 @@ struct AppState {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            refresh_tray_icon(app);
             show_about(app);
         }))
         .setup(|app| {
@@ -35,20 +36,7 @@ fn main() {
                 browsers: Mutex::new(browsers.clone()),
             });
 
-            let menu = build_menu(app.handle(), &browsers)?;
-            let builder = TrayIconBuilder::with_id(TRAY_ID)
-                .tooltip(APP_NAME)
-                .menu(&menu)
-                .show_menu_on_left_click(true)
-                .on_menu_event(handle_menu_event);
-
-            let builder = if let Some(icon) = app.default_window_icon() {
-                builder.icon(icon.clone())
-            } else {
-                builder
-            };
-
-            builder.build(app)?;
+            build_tray_icon(app.handle(), &browsers)?;
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -129,6 +117,35 @@ fn build_menu(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Resul
     menu.append(&quit)?;
 
     Ok(menu)
+}
+
+fn build_tray_icon(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Result<()> {
+    let _ = app.remove_tray_by_id(TRAY_ID);
+
+    let menu = build_menu(app, browsers)?;
+    let builder = TrayIconBuilder::with_id(TRAY_ID)
+        .tooltip(APP_NAME)
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(handle_menu_event);
+
+    let builder = if let Some(icon) = app.default_window_icon() {
+        builder.icon(icon.clone())
+    } else {
+        builder
+    };
+
+    builder.build(app)?;
+    Ok(())
+}
+
+fn refresh_tray_icon(app: &AppHandle) {
+    let browsers = app
+        .try_state::<AppState>()
+        .and_then(|state| state.browsers.lock().ok().map(|browsers| browsers.clone()))
+        .unwrap_or_else(discover_browsers);
+
+    let _ = build_tray_icon(app, &browsers);
 }
 
 fn open_browser_settings(app: &AppHandle, index: usize) {
