@@ -26,6 +26,9 @@ struct AppState {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_about(app);
+        }))
         .setup(|app| {
             let browsers = discover_browsers();
             app.manage(AppState {
