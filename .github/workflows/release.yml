@@ -44,6 +44,8 @@ jobs:
             Write-Host "Release $tag does not exist; building installers."
           }
 
+          exit 0
+
       - name: Set up Node.js
         if: steps.release.outputs.exists == 'false'
         uses: actions/setup-node@v4
