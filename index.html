@@ -26,6 +26,19 @@
         line-height: 1.5;
       }
 
+      .header {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        margin-bottom: 1.25rem;
+      }
+
+      .app-icon {
+        width: 3.5rem;
+        height: 3.5rem;
+        flex: 0 0 auto;
+      }
+
       h1 {
         margin: 0 0 0.25rem;
         font-size: 1.35rem;
@@ -33,7 +46,7 @@
       }
 
       .version {
-        margin: 0 0 1.25rem;
+        margin: 0;
         color: GrayText;
         font-size: 0.9rem;
       }
@@ -53,11 +66,21 @@
   </head>
   <body>
     <main>
-      <h1>Browser Switcher</h1>
-      <p class="version">Version 0.1.0</p>
+      <div class="header">
+        <img class="app-icon" src="./icon.png" alt="" aria-hidden="true" />
+        <div>
+          <h1>Browser Switcher</h1>
+          <p class="version">Version __APP_VERSION__</p>
+        </div>
+      </div>
       <p>Opens Windows Default Apps settings for installed browsers.</p>
       <p>Browser Switcher does not change default apps directly.</p>
-      <button type="button" onclick="window.close()">OK</button>
+      <button type="button" id="ok-button">OK</button>
     </main>
+    <script>
+      document.getElementById("ok-button").addEventListener("click", () => {
+        window.__TAURI__.window.getCurrentWindow().hide();
+      });
+    </script>
   </body>
 </html>

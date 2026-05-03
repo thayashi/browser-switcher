@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default browser tray base capability",
   "windows": ["main"],
-  "permissions": []
+  "permissions": ["core:window:allow-hide"]
 }

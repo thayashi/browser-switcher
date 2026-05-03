@@ -37,6 +37,9 @@ fn main() {
             });
 
             build_tray_icon(app.handle(), &browsers)?;
+            if should_show_about_on_start() {
+                show_about(app.handle());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -176,6 +179,10 @@ fn show_about(app: &AppHandle) {
     }
 }
 
+fn should_show_about_on_start() -> bool {
+    cfg!(debug_assertions) && std::env::var_os("BROWSER_SWITCHER_SHOW_ABOUT_ON_START").is_some()
+}
+
 fn open_settings_uri(uri: &str) -> std::io::Result<()> {
     open_settings_uri_impl(uri)
 }
@@ -218,4 +225,25 @@ fn widestring(value: &str) -> Vec<u16> {
 #[cfg(not(windows))]
 fn open_settings_uri_impl(uri: &str) -> std::io::Result<()> {
     std::process::Command::new("xdg-open").arg(uri).spawn().map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn about_window_is_hidden_by_default_on_startup() {
+        std::env::remove_var("BROWSER_SWITCHER_SHOW_ABOUT_ON_START");
+
+        assert!(!should_show_about_on_start());
+    }
+
+    #[test]
+    fn about_window_can_be_shown_on_startup_for_development_layout_checks() {
+        std::env::set_var("BROWSER_SWITCHER_SHOW_ABOUT_ON_START", "1");
+
+        assert!(should_show_about_on_start());
+
+        std::env::remove_var("BROWSER_SWITCHER_SHOW_ABOUT_ON_START");
+    }
 }

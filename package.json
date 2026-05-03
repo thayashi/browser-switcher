@@ -1,12 +1,15 @@
 {
   "name": "browser-switcher",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "scripts": {
+    "build:about": "node scripts/build-about.mjs",
     "tauri": "tauri",
-    "dev": "tauri dev",
-    "build": "tauri build",
+    "dev": "npm run build:about && tauri dev",
+    "dev:about": "npm run build:about && node scripts/dev-about.mjs",
+    "build": "npm run build:about && tauri build",
+    "test:about": "node tests/about-html.test.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
