@@ -45,6 +45,9 @@ Use `npm run dev:about` when checking About window layout. It shows the About wi
 ## Version And Release Rules
 
 - Bump the version before creating a build intended for install or GitHub distribution.
+- Merging to `main` runs the GitHub Actions release workflow.
+- The release workflow publishes MSI/EXE assets only when `v<package.json version>` does not already exist.
+- If a `main` merge should publish a new installer, bump the version in the same branch before merging.
 - Keep version values aligned in:
   - `package.json`
   - `package-lock.json`

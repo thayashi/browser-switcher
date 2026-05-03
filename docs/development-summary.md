@@ -63,6 +63,14 @@ Last updated: 2026-05-03
 
 When creating a build intended for install or GitHub distribution, bump the app version first. Windows Installer, Start menu shortcuts, executable metadata, and Windows icon/notification caches may not refresh reliably when a new installer reuses the same version.
 
+GitHub Actions release automation is configured in:
+
+```text
+.github/workflows/release.yml
+```
+
+On `main` pushes, the workflow reads `package.json`, checks for a matching `v<version>` GitHub Release, and only publishes when that release does not already exist. A normal documentation or code merge to `main` with an unchanged version will run the workflow but skip publishing. A release-intended merge must include a version bump.
+
 Version must stay aligned in:
 
 ```text

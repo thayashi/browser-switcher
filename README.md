@@ -66,6 +66,8 @@ src-tauri/target/release/bundle/msi/
 src-tauri/target/release/bundle/nsis/
 ```
 
+Merges to `main` also run a GitHub Actions release workflow. It creates a GitHub Release for `v<package.json version>` and uploads the MSI/setup EXE only when that release does not already exist.
+
 ## Documentation
 
 - Development context and historical notes: [docs/development-summary.md](docs/development-summary.md)

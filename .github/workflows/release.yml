@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Determine release version
+        id: release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $package = Get-Content package.json | ConvertFrom-Json
+          $version = $package.version
+          $tag = "v$version"
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "exists=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $tag already exists; skipping publish."
+          } else {
+            "exists=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $tag does not exist; building installers."
+          }
+
+      - name: Set up Node.js
+        if: steps.release.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        if: steps.release.outputs.exists == 'false'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        if: steps.release.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Test About window assets
+        if: steps.release.outputs.exists == 'false'
+        run: npm run test:about
+
+      - name: Run Rust tests
+        if: steps.release.outputs.exists == 'false'
+        run: npm run test:rust
+
+      - name: Check Rust build
+        if: steps.release.outputs.exists == 'false'
+        run: cargo check --manifest-path src-tauri\Cargo.toml
+
+      - name: Build installers
+        if: steps.release.outputs.exists == 'false'
+        run: npm run build
+
+      - name: Publish GitHub Release
+        if: steps.release.outputs.exists == 'false'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          $msi = "src-tauri/target/release/bundle/msi/Browser Switcher_${env:VERSION}_x64_en-US.msi"
+          $setup = "src-tauri/target/release/bundle/nsis/Browser Switcher_${env:VERSION}_x64-setup.exe"
+
+          foreach ($asset in @($msi, $setup)) {
+            if (-not (Test-Path $asset)) {
+              throw "Expected release asset was not generated: $asset"
+            }
+          }
+
+          gh release create $env:TAG `
+            $msi `
+            $setup `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title "Browser Switcher $env:VERSION" `
+            --notes "Automated release for Browser Switcher $env:VERSION."
