@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <clipPath id="clip"><rect x="0" y="0" width="256" height="256" rx="56" ry="56"></rect></clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2A3344"></stop>
+      <stop offset="100%" stop-color="#161B26"></stop>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"></stop>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"></stop>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"></stop>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"></stop>
+    </linearGradient>
+    <radialGradient id="rg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"></stop>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect x="0" y="0" width="256" height="256" fill="url(#bg)"></rect>
+    <circle cx="128" cy="128" r="110" fill="url(#rg)"></circle>
+    <g style="mix-blend-mode:screen">
+      <circle cx="92" cy="96" r="52" fill="#E5484D" fill-opacity="0.92"></circle>
+      <circle cx="164" cy="96" r="52" fill="#F5A524" fill-opacity="0.92"></circle>
+      <circle cx="92" cy="168" r="52" fill="#46A758" fill-opacity="0.92"></circle>
+      <circle cx="164" cy="168" r="52" fill="#3B82F6" fill-opacity="0.92"></circle>
+    </g>
+    <g opacity="0.5">
+      <ellipse cx="80" cy="80" rx="18" ry="10" fill="#fff" opacity="0.55"></ellipse>
+      <ellipse cx="152" cy="80" rx="18" ry="10" fill="#fff" opacity="0.55"></ellipse>
+      <ellipse cx="80" cy="152" rx="18" ry="10" fill="#fff" opacity="0.45"></ellipse>
+      <ellipse cx="152" cy="152" rx="18" ry="10" fill="#fff" opacity="0.45"></ellipse>
+    </g>
+    <rect x="0" y="0" width="256" height="256" fill="url(#sheen)"></rect>
+  </g>
+  <rect x="0.5" y="0.5" width="255" height="255" rx="55.5" ry="55.5" fill="none" stroke="url(#edge)" stroke-width="1"></rect>
+</svg>
