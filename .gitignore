@@ -4,6 +4,9 @@ node_modules/
 # Rust/Tauri build output
 src-tauri/target/
 
+# Generated About window assets
+dist/
+
 # Tauri generated schemas
 src-tauri/gen/
 

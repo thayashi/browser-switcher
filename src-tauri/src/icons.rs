@@ -9,15 +9,21 @@ const MENU_ICON_SIZE: i32 = 16;
 #[cfg(windows)]
 pub fn browser_icon(browser: &BrowserRegistration) -> Option<Image<'static>> {
     browser
-        .executable_path
+        .icon_path
         .as_deref()
-        .and_then(browser_icon_from_executable)
+        .and_then(browser_icon_from_path)
+        .or_else(|| {
+            browser
+                .executable_path
+                .as_deref()
+                .and_then(browser_icon_from_executable)
+        })
         .or_else(default_browser_icon)
 }
 
-#[cfg(not(windows))]
-pub fn browser_icon(_browser: &crate::browser::BrowserRegistration) -> Option<()> {
-    None
+#[cfg(windows)]
+fn browser_icon_from_path(path: &str) -> Option<Image<'static>> {
+    Image::from_path(path).ok().map(Image::to_owned)
 }
 
 #[cfg(windows)]
@@ -30,6 +36,11 @@ pub fn browser_icon_from_executable(path: &str) -> Option<Image<'static>> {
         MENU_ICON_SIZE as u32,
         MENU_ICON_SIZE as u32,
     ))
+}
+
+#[cfg(not(windows))]
+pub fn browser_icon(_browser: &crate::browser::BrowserRegistration) -> Option<()> {
+    None
 }
 
 #[cfg(not(windows))]

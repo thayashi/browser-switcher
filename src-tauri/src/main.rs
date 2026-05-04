@@ -3,14 +3,14 @@
 use std::sync::Mutex;
 
 use browser_switcher::{
-    browser::BrowserRegistration,
+    browser::{browser_menu_label, BrowserRegistration},
     icons::browser_icon,
-    registry::discover_browsers,
+    registry::{current_default_browser_protocol_id, discover_browsers},
     settings::{default_apps_uri_for, DEFAULT_APPS_URI},
 };
 use tauri::{
     menu::{IconMenuItem, Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WindowEvent,
 };
 
@@ -73,7 +73,30 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     }
 }
 
-fn build_menu(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Result<Menu<tauri::Wry>> {
+fn handle_tray_icon_event(tray: &TrayIcon, event: TrayIconEvent) {
+    let TrayIconEvent::Click {
+        button,
+        button_state,
+        ..
+    } = event
+    else {
+        return;
+    };
+
+    if button_state != MouseButtonState::Up {
+        return;
+    }
+
+    if matches!(button, MouseButton::Left | MouseButton::Right) {
+        refresh_and_show_tray_menu(tray);
+    }
+}
+
+fn build_menu(
+    app: &AppHandle,
+    browsers: &[BrowserRegistration],
+    default_protocol_id: Option<&str>,
+) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
 
     if browsers.is_empty() {
@@ -88,11 +111,12 @@ fn build_menu(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Resul
     } else {
         for (index, browser) in browsers.iter().enumerate() {
             let id = format!("{BROWSER_PREFIX}{index}");
+            let label = browser_menu_label(browser, default_protocol_id);
             if let Some(icon) = browser_icon(browser) {
                 let item = IconMenuItem::with_id(
                     app,
                     id,
-                    &browser.display_name,
+                    &label,
                     true,
                     Some(icon),
                     None::<&str>,
@@ -102,7 +126,7 @@ fn build_menu(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Resul
                 let item = MenuItem::with_id(
                     app,
                     id,
-                    &browser.display_name,
+                    &label,
                     true,
                     None::<&str>,
                 )?;
@@ -125,12 +149,14 @@ fn build_menu(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Resul
 fn build_tray_icon(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::Result<()> {
     let _ = app.remove_tray_by_id(TRAY_ID);
 
-    let menu = build_menu(app, browsers)?;
+    let default_protocol_id = current_default_browser_protocol_id();
+    let menu = build_menu(app, browsers, default_protocol_id.as_deref())?;
     let builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(APP_NAME)
         .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(handle_menu_event);
+        .show_menu_on_left_click(false)
+        .on_menu_event(handle_menu_event)
+        .on_tray_icon_event(handle_tray_icon_event);
 
     let builder = if let Some(icon) = app.default_window_icon() {
         builder.icon(icon.clone())
@@ -138,7 +164,10 @@ fn build_tray_icon(app: &AppHandle, browsers: &[BrowserRegistration]) -> tauri::
         builder
     };
 
-    builder.build(app)?;
+    let tray = builder.build(app)?;
+    let _ = tray.with_inner_tray_icon(|tray| {
+        tray.set_show_menu_on_right_click(false);
+    });
     Ok(())
 }
 
@@ -149,6 +178,23 @@ fn refresh_tray_icon(app: &AppHandle) {
         .unwrap_or_else(discover_browsers);
 
     let _ = build_tray_icon(app, &browsers);
+}
+
+fn refresh_and_show_tray_menu(tray: &TrayIcon) {
+    let app = tray.app_handle();
+    let browsers = app
+        .try_state::<AppState>()
+        .and_then(|state| state.browsers.lock().ok().map(|browsers| browsers.clone()))
+        .unwrap_or_else(discover_browsers);
+    let default_protocol_id = current_default_browser_protocol_id();
+
+    if let Ok(menu) = build_menu(app, &browsers, default_protocol_id.as_deref()) {
+        let _ = tray.set_menu(Some(menu));
+    }
+
+    let _ = tray.with_inner_tray_icon(|tray| {
+        tray.show_menu();
+    });
 }
 
 fn open_browser_settings(app: &AppHandle, index: usize) {
