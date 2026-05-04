@@ -10,7 +10,7 @@ Update this document when a change affects how the app works, how it is built or
 
 Last updated: 2026-05-03
 
-- Current app version: `0.1.4`.
+- Current app version: `0.1.5`.
 - Primary branch: `main`.
 - Feature/docs work should happen on a branch, not directly on `main`.
 - Browser Switcher is a Windows tray app built with Tauri 2 and Rust.
@@ -89,8 +89,8 @@ dist/index.html
 The latest release build generated during development was:
 
 ```text
-Browser Switcher_0.1.4_x64_en-US.msi
-Browser Switcher_0.1.4_x64-setup.exe
+Browser Switcher_0.1.5_x64_en-US.msi
+Browser Switcher_0.1.5_x64-setup.exe
 ```
 
 Before installing a new build, fully quit any running `browser-switcher.exe` process.
@@ -169,7 +169,7 @@ Packaged/AppModel browsers such as Arc use the `registeredAUMID` Default Apps se
 
 Firefox appeared twice because Windows registered it through both `RegisteredApplications` and `Clients\StartMenuInternet`. Deduplication now keys on normalized `registry_id`, allowing different display names for the same registration to merge.
 
-Arc did not expose a standard executable path suitable for icon extraction in normal registration data. A deeper MSIX/AppModel lookup was explored and removed because it was too specific and brittle. The current behavior is to use the default browser fallback icon when a standard icon source is unavailable.
+Packaged/AppModel browsers can expose icon assets through package `Logo` metadata rather than a normal executable icon path. Browser Switcher reads those AppModel logo paths when available, which allows Arc to show its registered icon in the tray menu.
 
 ## Historical Planning Artifacts
 
