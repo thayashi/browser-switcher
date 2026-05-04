@@ -10,7 +10,7 @@
     "dev:about": "npm run build:about && node scripts/dev-about.mjs",
     "build": "npm run build:about && tauri build",
     "test:about": "node tests/about-html.test.mjs",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+    "test:rust": "npm run build:about && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"
