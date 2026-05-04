@@ -11,9 +11,18 @@ pub fn discover_browsers() -> Vec<BrowserRegistration> {
     discover_browsers_impl()
 }
 
+pub fn current_default_browser_protocol_id() -> Option<String> {
+    current_default_browser_protocol_id_impl()
+}
+
 #[cfg(not(windows))]
 fn discover_browsers_impl() -> Vec<BrowserRegistration> {
     Vec::new()
+}
+
+#[cfg(not(windows))]
+fn current_default_browser_protocol_id_impl() -> Option<String> {
+    None
 }
 
 #[cfg(windows)]
@@ -56,6 +65,71 @@ fn discover_browsers_impl() -> Vec<BrowserRegistration> {
 }
 
 #[cfg(windows)]
+fn current_default_browser_protocol_id_impl() -> Option<String> {
+    read_default_browser_protocol_id_from_root(&RegKey::predef(HKEY_CURRENT_USER))
+        .or_else(read_default_browser_protocol_id_from_loaded_profile)
+}
+
+#[cfg(windows)]
+fn read_default_browser_protocol_id_from_root(root: &RegKey) -> Option<String> {
+    read_prog_id_from_user_choice_latest(root).or_else(|| read_prog_id_from_user_choice(root))
+}
+
+#[cfg(windows)]
+fn read_prog_id_from_user_choice_latest(root: &RegKey) -> Option<String> {
+    let key = root
+        .open_subkey(
+            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoiceLatest\\ProgId",
+        )
+        .ok()?;
+
+    read_trimmed_prog_id(&key)
+}
+
+#[cfg(windows)]
+fn read_prog_id_from_user_choice(root: &RegKey) -> Option<String> {
+    let key = root
+        .open_subkey(
+            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice",
+        )
+        .ok()?;
+
+    read_trimmed_prog_id(&key)
+}
+
+#[cfg(windows)]
+fn read_trimmed_prog_id(key: &RegKey) -> Option<String> {
+    key.get_value::<String, _>("ProgId")
+        .ok()
+        .map(|prog_id| prog_id.trim().to_string())
+        .filter(|prog_id| !prog_id.is_empty())
+}
+
+#[cfg(windows)]
+fn read_default_browser_protocol_id_from_loaded_profile() -> Option<String> {
+    let current_profile = std::env::var("USERPROFILE").ok()?;
+    let users = RegKey::predef(HKEY_USERS);
+
+    users
+        .enum_keys()
+        .filter_map(Result::ok)
+        .filter(|sid| !sid.ends_with("_Classes"))
+        .find_map(|sid| {
+            let user = users.open_subkey(&sid).ok()?;
+            let profile = user
+                .open_subkey("Volatile Environment")
+                .ok()
+                .and_then(|key| key.get_value::<String, _>("USERPROFILE").ok())?;
+
+            if !profile.eq_ignore_ascii_case(&current_profile) {
+                return None;
+            }
+
+            read_default_browser_protocol_id_from_root(&user)
+        })
+}
+
+#[cfg(windows)]
 fn read_registered_applications(
     root: RegKey,
     path: &str,
@@ -70,7 +144,8 @@ fn read_registered_applications(
         .filter_map(|(value_name, _)| {
             let capabilities_path = key.get_value::<String, _>(&value_name).ok()?;
 
-            if !capabilities_include_web_protocols(&root, &capabilities_path) {
+            let url_protocol_ids = read_web_protocol_ids(&root, &capabilities_path);
+            if url_protocol_ids.is_empty() {
                 return None;
             }
 
@@ -78,7 +153,14 @@ fn read_registered_applications(
                 .unwrap_or_else(|| value_name.clone());
             let executable_path = read_application_icon_path(&root, &capabilities_path);
 
-            browser_if_valid(display_name, value_name, scope.clone(), executable_path)
+            browser_if_valid(
+                display_name,
+                value_name,
+                scope.clone(),
+                executable_path,
+                url_protocol_ids,
+            )
+            .map(apply_app_model_registration_if_available)
         })
         .collect()
 }
@@ -115,7 +197,8 @@ fn read_start_menu_clients(
             let client_key = key.open_subkey(&client_id).ok()?;
             let capabilities_path = format!("{path}\\{client_id}\\Capabilities");
 
-            if !capabilities_include_web_protocols(&root, &capabilities_path) {
+            let url_protocol_ids = read_web_protocol_ids(&root, &capabilities_path);
+            if url_protocol_ids.is_empty() {
                 return None;
             }
 
@@ -132,20 +215,170 @@ fn read_start_menu_clients(
                     .and_then(|command| extract_executable_path(&command))
             });
 
-            browser_if_valid(display_name, client_id, scope.clone(), executable_path)
+            browser_if_valid(
+                display_name,
+                client_id,
+                scope.clone(),
+                executable_path,
+                url_protocol_ids,
+            )
+            .map(apply_app_model_registration_if_available)
         })
         .collect()
 }
 
 #[cfg(windows)]
-fn capabilities_include_web_protocols(root: &RegKey, capabilities_path: &str) -> bool {
+fn apply_app_model_registration_if_available(
+    mut browser: BrowserRegistration,
+) -> BrowserRegistration {
+    if let Some((aumid, protocol_ids, icon_path)) = find_app_model_registration_for_browser(&browser)
+    {
+        browser.registry_id = aumid;
+        browser.scope = BrowserScope::AppModel;
+        browser.icon_path = icon_path;
+        merge_protocol_ids(&mut browser.url_protocol_ids, &protocol_ids);
+    }
+
+    browser
+}
+
+#[cfg(windows)]
+fn find_app_model_registration_for_browser(
+    browser: &BrowserRegistration,
+) -> Option<(String, Vec<String>, Option<String>)> {
+    let root = RegKey::predef(HKEY_CLASSES_ROOT);
+    let packages_path =
+        "Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\PackageRepository\\Packages";
+    let packages = root.open_subkey(packages_path).ok()?;
+
+    packages.enum_keys().filter_map(Result::ok).find_map(|package_id| {
+        let package = packages.open_subkey(&package_id).ok()?;
+        package
+            .enum_keys()
+            .filter_map(Result::ok)
+            .filter(|aumid| aumid.contains('!'))
+            .find_map(|aumid| {
+                let app = package.open_subkey(&aumid).ok()?;
+                let http = app.open_subkey("windows.protocol\\http").ok()?;
+                let https = app.open_subkey("windows.protocol\\https").ok()?;
+
+                if !app_model_protocol_matches_browser(&http, browser) {
+                    return None;
+                }
+
+                let protocol_ids = read_app_model_protocol_ids(&root, &package_id);
+                let mut protocol_ids = protocol_ids;
+                merge_protocol_ids_from_key(&mut protocol_ids, &http);
+                merge_protocol_ids_from_key(&mut protocol_ids, &https);
+                let icon_path = read_app_model_icon_path(&http).or_else(|| read_app_model_icon_path(&https));
+
+                Some((aumid, protocol_ids, icon_path))
+            })
+    })
+}
+
+#[cfg(windows)]
+fn app_model_protocol_matches_browser(protocol: &RegKey, browser: &BrowserRegistration) -> bool {
+    protocol
+        .get_value::<String, _>("DisplayName")
+        .ok()
+        .is_some_and(|name| name.trim().eq_ignore_ascii_case(&browser.display_name))
+}
+
+#[cfg(windows)]
+fn read_app_model_protocol_ids(root: &RegKey, package_id: &str) -> Vec<String> {
+    ["http", "https"]
+        .into_iter()
+        .flat_map(|protocol| {
+            let path = format!(
+                "Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\PackageRepository\\Extensions\\windows.protocol\\{protocol}"
+            );
+            let Ok(key) = root.open_subkey(path) else {
+                return Vec::new();
+            };
+
+            key.enum_keys()
+                .filter_map(Result::ok)
+                .filter(|protocol_id| {
+                    key.open_subkey(protocol_id)
+                        .ok()
+                        .and_then(|protocol_key| protocol_key.get_value::<String, _>(package_id).ok())
+                        .is_some()
+                })
+                .collect::<Vec<_>>()
+        })
+        .fold(Vec::new(), |mut protocol_ids, protocol_id| {
+            merge_protocol_id(&mut protocol_ids, protocol_id);
+            protocol_ids
+        })
+}
+
+#[cfg(windows)]
+fn read_app_model_icon_path(protocol: &RegKey) -> Option<String> {
+    protocol
+        .get_value::<String, _>("Logo")
+        .ok()
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+}
+
+#[cfg(windows)]
+fn read_web_protocol_ids(root: &RegKey, capabilities_path: &str) -> Vec<String> {
     let Ok(url_associations) = root.open_subkey(format!("{capabilities_path}\\URLAssociations"))
     else {
-        return false;
+        return Vec::new();
     };
 
-    url_associations.get_value::<String, _>("http").is_ok()
-        && url_associations.get_value::<String, _>("https").is_ok()
+    let http = url_associations.get_value::<String, _>("http").ok();
+    let https = url_associations.get_value::<String, _>("https").ok();
+
+    if http.is_none() || https.is_none() {
+        return Vec::new();
+    }
+
+    [http, https]
+        .into_iter()
+        .flatten()
+        .map(|protocol_id| protocol_id.trim().to_string())
+        .filter(|protocol_id| !protocol_id.is_empty())
+        .fold(Vec::new(), |mut protocol_ids, protocol_id| {
+            if !protocol_ids
+                .iter()
+                .any(|existing: &String| existing.eq_ignore_ascii_case(&protocol_id))
+            {
+                protocol_ids.push(protocol_id);
+            }
+            protocol_ids
+        })
+}
+
+#[cfg(windows)]
+fn merge_protocol_ids(existing: &mut Vec<String>, incoming: &[String]) {
+    for protocol_id in incoming {
+        merge_protocol_id(existing, protocol_id.clone());
+    }
+}
+
+#[cfg(windows)]
+fn merge_protocol_ids_from_key(existing: &mut Vec<String>, key: &RegKey) {
+    if let Ok(protocol_id) = key.get_value::<String, _>("ACID") {
+        merge_protocol_id(existing, protocol_id);
+    }
+}
+
+#[cfg(windows)]
+fn merge_protocol_id(existing: &mut Vec<String>, protocol_id: String) {
+    let protocol_id = protocol_id.trim().to_string();
+    if protocol_id.is_empty() {
+        return;
+    }
+
+    if !existing
+        .iter()
+        .any(|existing_id| existing_id.eq_ignore_ascii_case(&protocol_id))
+    {
+        existing.push(protocol_id);
+    }
 }
 
 #[cfg(windows)]
@@ -154,6 +387,7 @@ fn browser_if_valid(
     registry_id: String,
     scope: BrowserScope,
     executable_path: Option<String>,
+    url_protocol_ids: Vec<String>,
 ) -> Option<BrowserRegistration> {
     let display_name = display_name.trim().to_string();
     let registry_id = registry_id.trim().to_string();
@@ -166,7 +400,9 @@ fn browser_if_valid(
         display_name,
         registry_id,
         scope,
+        icon_path: executable_path.clone(),
         executable_path,
+        url_protocol_ids,
     })
 }
 

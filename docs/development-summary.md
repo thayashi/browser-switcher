@@ -15,11 +15,13 @@ Last updated: 2026-05-03
 - Feature/docs work should happen on a branch, not directly on `main`.
 - Browser Switcher is a Windows tray app built with Tauri 2 and Rust.
 - The tray menu lists installed browsers discovered from Windows registration data.
+- The tray menu marks the current default browser by appending a checkmark to the matching browser label.
+- The tray menu rebuilds immediately before it is shown, so default-browser changes made while the app is running are reflected the next time the tray menu opens.
 - Selecting a browser opens Windows Default Apps settings through `ms-settings:` URIs.
 - Browser Switcher does not change default apps directly.
 - The About window is a Tauri WebView showing static HTML from `dist/index.html`.
 - The About window title bar and frame are native Windows UI.
-- `index.html` is the source template; `scripts/build-about.mjs` generates `dist/index.html` and copies `dist/icon.png`.
+- `src-about/index.html` is the source template; `scripts/build-about.mjs` generates `dist/index.html` and copies `dist/icon.png`.
 - `npm run dev:about` exists for About window layout checks.
 
 ## Current Commands
@@ -160,6 +162,10 @@ Windows icon caches can be stale. If Start menu, Startup Apps, or notification s
 Last updated: 2026-05-01
 
 Browser discovery checks Windows registration data rather than a hardcoded browser list. Entries are treated as browsers only when registration capabilities include both `http` and `https` URL associations.
+
+The current default browser marker reads the `ProgId` from the current user's `http` URL association under `Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice` and compares it with discovered browser registration IDs. The app only reads this value; it does not modify Windows default app associations.
+
+Packaged/AppModel browsers such as Arc use the `registeredAUMID` Default Apps settings parameter instead of `registeredAppMachine`. Arc's AppModel registration is discovered from the package repository and opened with its Application User Model ID.
 
 Firefox appeared twice because Windows registered it through both `RegisteredApplications` and `Clients\StartMenuInternet`. Deduplication now keys on normalized `registry_id`, allowing different display names for the same registration to merge.
 

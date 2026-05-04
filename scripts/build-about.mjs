@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const sourceHtml = readFileSync(join(root, "index.html"), "utf8");
+const sourceHtml = readFileSync(join(root, "src-about", "index.html"), "utf8");
 const distDir = join(root, "dist");
 
 mkdirSync(distDir, { recursive: true });

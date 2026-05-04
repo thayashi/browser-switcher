@@ -6,6 +6,7 @@ pub fn default_apps_uri_for(browser: &BrowserRegistration) -> String {
     let parameter = match browser.scope {
         BrowserScope::User => "registeredAppUser",
         BrowserScope::Machine => "registeredAppMachine",
+        BrowserScope::AppModel => "registeredAUMID",
     };
 
     format!(
@@ -39,6 +40,8 @@ mod tests {
             registry_id: registry_id.to_string(),
             scope,
             executable_path: None,
+            icon_path: None,
+            url_protocol_ids: vec![registry_id.to_string()],
         }
     }
 
@@ -69,6 +72,19 @@ mod tests {
         assert_eq!(
             uri,
             "ms-settings:defaultapps?registeredAppUser=Contoso%20Browser"
+        );
+    }
+
+    #[test]
+    fn builds_app_model_registered_app_uri() {
+        let uri = default_apps_uri_for(&browser(
+            BrowserScope::AppModel,
+            "TheBrowserCompany.Arc_ttt1ap7aakyb4!Arc",
+        ));
+
+        assert_eq!(
+            uri,
+            "ms-settings:defaultapps?registeredAUMID=TheBrowserCompany.Arc_ttt1ap7aakyb4%21Arc"
         );
     }
 }

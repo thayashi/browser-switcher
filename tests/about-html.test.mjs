@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
-const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const html = readFileSync(new URL("../src-about/index.html", import.meta.url), "utf8");
 
 assert.match(html, /getCurrentWindow\(\)\.hide\(\)/);
 assert.doesNotMatch(html, /window\.close\(\)/);

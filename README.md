@@ -9,6 +9,7 @@ It does not change default apps directly. It only opens the supported Windows Se
 - Runs as a lightweight Windows tray app.
 - Detects installed browsers from Windows registration data.
 - Shows detected browsers in a native tray menu.
+- Marks the current default browser with a checkmark in the tray menu.
 - Opens browser-specific Default Apps settings when Windows supports the deep link.
 - Falls back to the general Default Apps settings page.
 - Prevents multiple running instances.
