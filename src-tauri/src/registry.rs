@@ -72,7 +72,17 @@ fn current_default_browser_protocol_id_impl() -> Option<String> {
 
 #[cfg(windows)]
 fn read_default_browser_protocol_id_from_root(root: &RegKey) -> Option<String> {
-    read_prog_id_from_user_choice_latest(root).or_else(|| read_prog_id_from_user_choice(root))
+    choose_current_default_browser_protocol_id(
+        read_prog_id_from_user_choice(root),
+        read_prog_id_from_user_choice_latest(root),
+    )
+}
+
+fn choose_current_default_browser_protocol_id(
+    user_choice: Option<String>,
+    user_choice_latest: Option<String>,
+) -> Option<String> {
+    user_choice.or(user_choice_latest)
 }
 
 #[cfg(windows)]
@@ -464,6 +474,19 @@ fn includes_required_web_protocols(protocols: &[&str]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prefers_user_choice_over_user_choice_latest_for_current_default_browser() {
+        let protocol_id = choose_current_default_browser_protocol_id(
+            Some("FirefoxURL-308046B0AF4A39CB".to_string()),
+            Some("MSEdgeHTM".to_string()),
+        );
+
+        assert_eq!(
+            protocol_id.as_deref(),
+            Some("FirefoxURL-308046B0AF4A39CB")
+        );
+    }
 
     #[test]
     fn extracts_quoted_executable_path_from_shell_command() {

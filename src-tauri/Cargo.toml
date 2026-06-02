@@ -1,6 +1,6 @@
 [package]
 name = "browser-switcher"
-version = "0.1.5"
+version = "0.1.6"
 description = "Windows tray utility for opening browser Default Apps settings"
 authors = ["Browser Switcher contributors"]
 edition = "2021"
