@@ -8,9 +8,9 @@ Update this document when a change affects how the app works, how it is built or
 
 ## Current State
 
-Last updated: 2026-06-02
+Last updated: 2026-06-13
 
-- Current app version: `0.1.6`.
+- Current app version: `0.1.7`.
 - Primary branch: `main`.
 - Feature/docs work should happen on a branch, not directly on `main`.
 - Browser Switcher is a Windows tray app built with Tauri 2 and Rust.
@@ -89,8 +89,8 @@ dist/index.html
 The latest release build generated during development was:
 
 ```text
-Browser Switcher_0.1.6_x64_en-US.msi
-Browser Switcher_0.1.6_x64-setup.exe
+Browser Switcher_0.1.7_x64_en-US.msi
+Browser Switcher_0.1.7_x64-setup.exe
 ```
 
 Before installing a new build, fully quit any running `browser-switcher.exe` process.
@@ -163,7 +163,7 @@ Last updated: 2026-05-01
 
 Browser discovery checks Windows registration data rather than a hardcoded browser list. Entries are treated as browsers only when registration capabilities include both `http` and `https` URL associations.
 
-The current default browser marker reads the `ProgId` from the current user's `http` URL association under `Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice` and compares it with discovered browser registration IDs. `UserChoice` is treated as the current source of truth; `UserChoiceLatest` is only a fallback when `UserChoice` cannot be read, because `UserChoiceLatest` can retain stale values such as Edge after the user changes the default browser. The app only reads these values; it does not modify Windows default app associations.
+The current default browser marker reads `ProgId` values from the current user's `http` and `https` URL associations under `Software\Microsoft\Windows\Shell\Associations\UrlAssociations`. `UserChoiceLatest` is preferred because it has matched the Windows Default Apps UI after browser updates, including cases where `UserChoice` retained stale Edge values. `UserChoice` remains a fallback when `UserChoiceLatest` cannot be read. The app only reads these values; it does not modify Windows default app associations.
 
 Packaged/AppModel browsers such as Arc use the `registeredAUMID` Default Apps settings parameter instead of `registeredAppMachine`. Arc's AppModel registration is discovered from the package repository and opened with its Application User Model ID.
 
