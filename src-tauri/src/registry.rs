@@ -73,35 +73,55 @@ fn current_default_browser_protocol_id_impl() -> Option<String> {
 #[cfg(windows)]
 fn read_default_browser_protocol_id_from_root(root: &RegKey) -> Option<String> {
     choose_current_default_browser_protocol_id(
-        read_prog_id_from_user_choice(root),
-        read_prog_id_from_user_choice_latest(root),
+        read_prog_id_from_user_choice_latest(root, "http"),
+        read_prog_id_from_user_choice_latest(root, "https"),
+        read_prog_id_from_user_choice(root, "http"),
+        read_prog_id_from_user_choice(root, "https"),
     )
 }
 
 fn choose_current_default_browser_protocol_id(
-    user_choice: Option<String>,
-    user_choice_latest: Option<String>,
+    http_user_choice_latest: Option<String>,
+    https_user_choice_latest: Option<String>,
+    http_user_choice: Option<String>,
+    https_user_choice: Option<String>,
 ) -> Option<String> {
-    user_choice.or(user_choice_latest)
+    matching_protocol_id(&http_user_choice_latest, &https_user_choice_latest)
+        .or(http_user_choice_latest)
+        .or(https_user_choice_latest)
+        .or_else(|| matching_protocol_id(&http_user_choice, &https_user_choice))
+        .or(http_user_choice)
+        .or(https_user_choice)
+}
+
+fn matching_protocol_id(http: &Option<String>, https: &Option<String>) -> Option<String> {
+    let http = http.as_deref()?.trim();
+    let https = https.as_deref()?.trim();
+
+    if http.eq_ignore_ascii_case(https) && !http.is_empty() {
+        Some(http.to_string())
+    } else {
+        None
+    }
 }
 
 #[cfg(windows)]
-fn read_prog_id_from_user_choice_latest(root: &RegKey) -> Option<String> {
+fn read_prog_id_from_user_choice_latest(root: &RegKey, protocol: &str) -> Option<String> {
     let key = root
-        .open_subkey(
-            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoiceLatest\\ProgId",
-        )
+        .open_subkey(format!(
+            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\{protocol}\\UserChoiceLatest\\ProgId",
+        ))
         .ok()?;
 
     read_trimmed_prog_id(&key)
 }
 
 #[cfg(windows)]
-fn read_prog_id_from_user_choice(root: &RegKey) -> Option<String> {
+fn read_prog_id_from_user_choice(root: &RegKey, protocol: &str) -> Option<String> {
     let key = root
-        .open_subkey(
-            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice",
-        )
+        .open_subkey(format!(
+            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\{protocol}\\UserChoice",
+        ))
         .ok()?;
 
     read_trimmed_prog_id(&key)
@@ -476,10 +496,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn prefers_user_choice_over_user_choice_latest_for_current_default_browser() {
+    fn prefers_matching_user_choice_latest_over_stale_user_choice() {
         let protocol_id = choose_current_default_browser_protocol_id(
-            Some("FirefoxURL-308046B0AF4A39CB".to_string()),
+            Some("ChromeHTML".to_string()),
+            Some("ChromeHTML".to_string()),
             Some("MSEdgeHTM".to_string()),
+            Some("MSEdgeHTM".to_string()),
+        );
+
+        assert_eq!(protocol_id.as_deref(), Some("ChromeHTML"));
+    }
+
+    #[test]
+    fn falls_back_to_matching_user_choice_when_user_choice_latest_is_unavailable() {
+        let protocol_id = choose_current_default_browser_protocol_id(
+            None,
+            None,
+            Some("FirefoxURL-308046B0AF4A39CB".to_string()),
+            Some("FirefoxURL-308046B0AF4A39CB".to_string()),
         );
 
         assert_eq!(
