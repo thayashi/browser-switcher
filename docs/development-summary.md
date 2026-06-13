@@ -23,6 +23,7 @@ Last updated: 2026-06-13
 - The About window title bar and frame are native Windows UI.
 - `src-about/index.html` is the source template; `scripts/build-about.mjs` generates `dist/index.html` and copies `dist/icon.png`.
 - `npm run dev:about` exists for About window layout checks.
+- The Tauri app identifier is `com.toshisoftware.browser-switcher`; Microsoft Store MSIX package identity is handled separately in the MSIX manifest.
 
 ## Current Commands
 
@@ -40,6 +41,7 @@ Development:
 ```powershell
 npm run dev
 npm run dev:about
+npm run build:store-exe
 ```
 
 Verification:
@@ -58,6 +60,8 @@ src-tauri/target/release/
 src-tauri/target/release/bundle/msi/
 src-tauri/target/release/bundle/nsis/
 ```
+
+`npm run build:store-exe` builds the release executable without creating Tauri MSI/NSIS bundles. Use it before MSIX packaging for Microsoft Store submission.
 
 ## Release And Versioning Notes
 
@@ -94,6 +98,32 @@ Browser Switcher_0.1.7_x64-setup.exe
 ```
 
 Before installing a new build, fully quit any running `browser-switcher.exe` process.
+
+## Microsoft Store MSIX Notes
+
+Last updated: 2026-06-09
+
+Microsoft Store distribution uses MSIX to avoid buying a third-party code signing certificate. Microsoft signs the submitted MSIX package after Store certification.
+
+Partner Center identity values for the reserved app:
+
+```text
+Package/Identity/Name: ToshiSoftware.BrowserSwitcher
+Package/Identity/Publisher: CN=2EF452DB-B9F8-45A1-8F23-32AC995C605E
+Package/Properties/PublisherDisplayName: Toshi Software
+Package Family Name: ToshiSoftware.BrowserSwitcher_ngewhyn65gmh0
+Store ID: 9P0TQCXR13D9
+```
+
+Do not confuse the MSIX `Package/Identity/Name` with Tauri's `identifier`. Tauri uses the stable reverse-DNS identifier `com.toshisoftware.browser-switcher`; the exact Partner Center identity must be used in the MSIX manifest when creating the Store package.
+
+Store executable build:
+
+```powershell
+npm run build:store-exe
+```
+
+The Store packaging path should wrap `src-tauri\target\release\browser-switcher.exe` into MSIX with Windows packaging tooling. Existing GitHub Release MSI/EXE output remains separate.
 
 ## About Window Notes
 
