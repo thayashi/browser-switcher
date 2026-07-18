@@ -4,7 +4,7 @@
 
 **Goal:** Publish Browser Switcher to the Microsoft Store without paying for a third-party code signing certificate by producing an MSIX package for Store submission.
 
-**Architecture:** Keep the existing Tauri app and GitHub Release MSI/EXE workflow intact, then add a separate Store packaging path that wraps the Tauri release executable into MSIX. Tauri 2 currently generates MSI/EXE installers, so MSIX packaging must be handled by Windows tooling outside the normal Tauri bundler.
+**Architecture:** Keep the existing Tauri app and GitHub Release MSI/EXE workflow intact, then add a separate Store packaging path that wraps the Tauri release executable directly into MSIX with `makeappx.exe`. Tauri 2 currently generates MSI/EXE installers, so MSIX packaging must be handled by Windows tooling outside the normal Tauri bundler.
 
 **Tech Stack:** Tauri 2, Rust, Node.js, GitHub Actions on Windows, Microsoft Store / Partner Center, MSIX Packaging Tool or Visual Studio Windows Application Packaging Project.
 
@@ -35,7 +35,7 @@ References:
 - Create: `src-tauri/tauri.store.conf.json`
   - Store-specific Tauri config used only for the release executable build.
 - Create: `store/msix/`
-  - Store packaging project, manifest template, assets, or MSIX Packaging Tool config.
+  - Store packaging documentation. Generated layout and output under this directory are ignored.
 - Modify: `.github/workflows/release.yml`
   - Keep existing MSI/EXE release behavior.
   - Add a separate manual Store package job or workflow after local MSIX packaging is proven.
@@ -138,78 +138,94 @@ Expected:
 - `src-tauri\target\release\browser-switcher.exe` exists.
 - Existing `npm run build` still creates MSI/EXE for GitHub Releases.
 
-## Task 3: Prove Visual Studio MSIX Packaging
+## Task 3: Prove Direct makeappx MSIX Packaging
 
 **Files:**
 - Create: `store/msix/README.md`
-- Create: `store/msix/BrowserSwitcher.Package.wapproj`
-- Create: `store/msix/Package.appxmanifest`
+- Create: `scripts/build-msix-layout.mjs`
+- Create: `scripts/build-msix-package.mjs`
+- Create: `tests/msix-layout.test.mjs`
+- Modify: `package.json`
+- Modify: `.gitignore`
 
-- [ ] **Step 1: Create a Windows Application Packaging Project**
+- [x] **Step 1: Add a layout contract test**
 
-Use Visual Studio Community or Build Tools with the Windows Application Packaging Project workload. Create `store/msix/BrowserSwitcher.Package.wapproj` and configure it to package `src-tauri\target\release\browser-switcher.exe`.
-
-Expected:
-- The packaging project wraps `src-tauri\target\release\browser-switcher.exe`.
-- The project emits `.msixupload` or `.msixbundle`.
-- Store assets can be managed declaratively.
-
-- [ ] **Step 2: Add a package manifest**
-
-Create `store/msix/Package.appxmanifest` through Visual Studio and set these values from Partner Center:
-- Package identity name.
-- Publisher.
-- Display name.
-- Version matching `package.json`.
-- Processor architecture `x64` for the first release.
+Create `tests/msix-layout.test.mjs` to verify:
+- `AppxManifest.xml` contains Partner Center identity values.
+- The executable path is `browser-switcher.exe`, not a `VFS` path.
+- Top-level layout contains only `AppxManifest.xml`, `Assets`, and `browser-switcher.exe`.
+- Runtime data directories such as `VFS` and `EBWebView` are absent.
 
 Expected:
-- Manifest validation succeeds in Visual Studio.
-- The executable entry point launches Browser Switcher.
+- The test fails before `scripts/build-msix-layout.mjs` exists.
 
-- [ ] **Step 3: Build the MSIX upload package**
+- [x] **Step 2: Build a minimal MSIX layout**
 
-Run from a Developer PowerShell where MSBuild is available:
+Create `scripts/build-msix-layout.mjs` to:
+- Copy `src-tauri\target\release\browser-switcher.exe` into `store/msix/layout/browser-switcher.exe`.
+- Write `store/msix/layout/AppxManifest.xml`.
+- Copy app icon assets into `store/msix/layout/Assets`.
+- Remove any previous generated layout before writing the new one.
 
-```powershell
-npm run build:store-exe
-msbuild store\msix\BrowserSwitcher.Package.wapproj /p:Configuration=Release /p:Platform=x64
+Expected:
+- No installer capture is used.
+- No per-user `Local AppData`, `EBWebView`, or cache files are included.
+
+- [x] **Step 3: Add makeappx packaging**
+
+Create `scripts/build-msix-package.mjs` to locate Windows SDK `makeappx.exe` and pack `store/msix/layout` into:
+
+```text
+store/msix/out/ToshiSoftware.BrowserSwitcher_<version>.0_x64.msix
 ```
 
 Expected:
-- The packaging project emits a Store upload package under `store\msix\AppPackages\`.
-- The package can be installed locally for validation.
+- Package creation succeeds without a signing certificate.
+- Store signing remains handled by Microsoft after Partner Center certification.
 
-- [ ] **Step 4: Document the packaging command**
+- [x] **Step 4: Document the packaging command**
 
 Create `store/msix/README.md`:
 
 ````markdown
 # Store MSIX Packaging
 
-Browser Switcher is published to Microsoft Store through MSIX so Microsoft can sign the package after certification.
+Browser Switcher uses a direct `makeappx.exe` packaging path for Microsoft Store MSIX builds.
 
-Build the release executable:
+Do not use MSIX Packaging Tool installer capture for Store packages. Capturing the Tauri MSI/EXE installer can include per-user runtime data such as `EBWebView` cache files under `VFS/Local AppData`, especially if the app launches during capture.
+
+Build the unsigned Store MSIX:
 
 ```powershell
-npm run build:store-exe
+npm run build:msix
 ```
 
-Package with:
+Inspect the package contents:
 
 ```powershell
-msbuild store\msix\BrowserSwitcher.Package.wapproj /p:Configuration=Release /p:Platform=x64
+tar -tf store\msix\out\ToshiSoftware.BrowserSwitcher_<version>.0_x64.msix
 ```
 
-Validate with:
+The package must not contain:
 
-```powershell
-"C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe" reset
-"C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe" test -appxpackagepath store\msix\AppPackages\BrowserSwitcher.Package.msixupload -reportoutputpath store\msix\AppPackages\appcert-report.xml
+```text
+VFS/Local AppData/
+EBWebView/
 ```
 ````
 
-If Visual Studio emits a versioned package name, update the `appcert.exe` package path to the exact emitted file name in the same commit that adds the packaging project.
+- [x] **Step 5: Prove generated package contents**
+
+Run:
+
+```powershell
+npm run build:msix
+tar -tf store\msix\out\ToshiSoftware.BrowserSwitcher_0.1.7.0_x64.msix
+```
+
+Expected:
+- The generated package contains only app assets, `browser-switcher.exe`, manifest, block map, and content types.
+- The generated package does not contain `VFS/Local AppData` or `EBWebView`.
 
 ## Task 4: Add Store Listing Assets
 
