@@ -110,8 +110,10 @@ try {
     manifest,
     /Publisher="CN=2EF452DB-B9F8-45A1-8F23-32AC995C605E"/,
   );
-  assert.match(manifest, /Version="0\.1\.7\.0"/);
+  assert.match(manifest, /Version="0\.1\.8\.0"/);
   assert.match(manifest, /Executable="browser-switcher\.exe"/);
+  assert.match(manifest, /Category="windows\.startupTask"/);
+  assert.match(manifest, /TaskId="BrowserSwitcherStartup" Enabled="false"/);
   assert.match(manifest, /BackgroundColor="transparent"/);
   assert.match(manifest, /<Logo>Assets\\StoreLogo\.png<\/Logo>/);
   assert.doesNotMatch(manifest, /VFS\\/);

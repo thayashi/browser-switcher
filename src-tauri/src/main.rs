@@ -3,13 +3,14 @@
 use std::sync::Mutex;
 
 use browser_switcher::{
+    autostart,
     browser::{browser_menu_label, BrowserRegistration},
     icons::browser_icon,
     registry::{current_default_browser_protocol_id, discover_browsers},
     settings::{default_apps_uri_for, DEFAULT_APPS_URI},
 };
 use tauri::{
-    menu::{IconMenuItem, Menu, MenuItem, PredefinedMenuItem},
+    menu::{CheckMenuItem, IconMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WindowEvent,
 };
@@ -17,6 +18,7 @@ use tauri::{
 const APP_NAME: &str = "Browser Switcher";
 const TRAY_ID: &str = "browser-switcher";
 const ABOUT_ID: &str = "about";
+const AUTOSTART_ID: &str = "autostart";
 const QUIT_ID: &str = "quit";
 const BROWSER_PREFIX: &str = "browser:";
 
@@ -62,6 +64,14 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
 
     if id == ABOUT_ID {
         show_about(app);
+        return;
+    }
+
+    if id == AUTOSTART_ID {
+        if autostart::toggle().is_err() {
+            let _ = open_settings_uri("ms-settings:startupapps");
+        }
+        refresh_tray_icon(app);
         return;
     }
 
@@ -137,10 +147,19 @@ fn build_menu(
 
     let separator = PredefinedMenuItem::separator(app)?;
     let about = MenuItem::with_id(app, ABOUT_ID, "About Browser Switcher", true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        AUTOSTART_ID,
+        "Launch Browser Switcher at sign-in",
+        true,
+        autostart::is_enabled().unwrap_or(false),
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
 
     menu.append(&separator)?;
     menu.append(&about)?;
+    menu.append(&autostart)?;
     menu.append(&quit)?;
 
     Ok(menu)

@@ -54,9 +54,10 @@ writeFileSync(
   `<?xml version="1.0" encoding="utf-8"?>
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap desktop rescap">
   <Identity
     Name="${packageName}"
     Publisher="${publisher}"
@@ -89,6 +90,11 @@ writeFileSync(
           Square310x310Logo="Assets\\Square310x310Logo.png"
           Wide310x150Logo="Assets\\Wide310x150Logo.png" />
       </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension Category="windows.startupTask" Executable="browser-switcher.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="BrowserSwitcherStartup" Enabled="false" DisplayName="${displayName}" />
+        </desktop:Extension>
+      </Extensions>
     </Application>
   </Applications>
 </Package>
