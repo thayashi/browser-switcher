@@ -9,8 +9,11 @@
     "dev": "npm run build:about && tauri dev",
     "dev:about": "npm run build:about && node scripts/dev-about.mjs",
     "build:store-exe": "npm run build:about && tauri build --no-bundle --config src-tauri/tauri.store.conf.json",
+    "build:msix-layout": "node scripts/build-msix-layout.mjs",
+    "build:msix": "npm run build:store-exe && npm run build:msix-layout && node scripts/build-msix-package.mjs",
     "build": "npm run build:about && tauri build",
     "test:about": "node tests/about-html.test.mjs",
+    "test:msix": "node tests/msix-layout.test.mjs",
     "test:rust": "npm run build:about && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {

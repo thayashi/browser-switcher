@@ -7,6 +7,10 @@ src-tauri/target/
 # Generated About window assets
 dist/
 
+# Generated MSIX package layout and unsigned package output
+store/msix/layout/
+store/msix/out/
+
 # Tauri generated schemas
 src-tauri/gen/
 

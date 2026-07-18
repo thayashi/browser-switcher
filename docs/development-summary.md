@@ -8,7 +8,7 @@ Update this document when a change affects how the app works, how it is built or
 
 ## Current State
 
-Last updated: 2026-06-13
+Last updated: 2026-06-14
 
 - Current app version: `0.1.7`.
 - Primary branch: `main`.
@@ -42,6 +42,7 @@ Development:
 npm run dev
 npm run dev:about
 npm run build:store-exe
+npm run build:msix
 ```
 
 Verification:
@@ -61,7 +62,7 @@ src-tauri/target/release/bundle/msi/
 src-tauri/target/release/bundle/nsis/
 ```
 
-`npm run build:store-exe` builds the release executable without creating Tauri MSI/NSIS bundles. Use it before MSIX packaging for Microsoft Store submission.
+`npm run build:store-exe` builds the release executable without creating Tauri MSI/NSIS bundles. `npm run build:msix` builds that executable, creates a minimal MSIX layout, and packs an unsigned Store MSIX with `makeappx.exe`.
 
 ## Release And Versioning Notes
 
@@ -101,7 +102,7 @@ Before installing a new build, fully quit any running `browser-switcher.exe` pro
 
 ## Microsoft Store MSIX Notes
 
-Last updated: 2026-06-09
+Last updated: 2026-06-14
 
 Microsoft Store distribution uses MSIX to avoid buying a third-party code signing certificate. Microsoft signs the submitted MSIX package after Store certification.
 
@@ -123,7 +124,15 @@ Store executable build:
 npm run build:store-exe
 ```
 
-The Store packaging path should wrap `src-tauri\target\release\browser-switcher.exe` into MSIX with Windows packaging tooling. Existing GitHub Release MSI/EXE output remains separate.
+Store MSIX build:
+
+```powershell
+npm run build:msix
+```
+
+The Store packaging path wraps `src-tauri\target\release\browser-switcher.exe` directly with `makeappx.exe`. Do not use MSIX Packaging Tool installer capture for Store packages; the first capture included WebView runtime data under `VFS/Local AppData/com.toshisoftware.browser-switcher/EBWebView`, which is not suitable for Store submission. Existing GitHub Release MSI/EXE output remains separate.
+
+MSIX visual assets live under `store/msix/assets/` and are copied into the package layout by `scripts/build-msix-layout.mjs`. They are intentionally separate from the Tauri executable icon assets. `StoreLogo.png` and scale-qualified tile logos include a square background for Store/App Installer surfaces; `Square44x44Logo.targetsize-*_altform-unplated.png` files use a transparent background for Windows surfaces that request unplated target-size icons. Do not bake rounded corners into these images because Store and Windows shell surfaces apply their own masks.
 
 ## About Window Notes
 
