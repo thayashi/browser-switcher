@@ -245,7 +245,14 @@ fn show_about(app: &AppHandle) {
 }
 
 fn should_show_about_on_start() -> bool {
-    cfg!(debug_assertions) && std::env::var_os("BROWSER_SWITCHER_SHOW_ABOUT_ON_START").is_some()
+    should_show_about_on_start_for_build(
+        cfg!(debug_assertions),
+        std::env::var_os("BROWSER_SWITCHER_SHOW_ABOUT_ON_START").is_some(),
+    )
+}
+
+fn should_show_about_on_start_for_build(is_debug_build: bool, show_about_requested: bool) -> bool {
+    is_debug_build && show_about_requested
 }
 
 fn open_settings_uri(uri: &str) -> std::io::Result<()> {
@@ -298,17 +305,16 @@ mod tests {
 
     #[test]
     fn about_window_is_hidden_by_default_on_startup() {
-        std::env::remove_var("BROWSER_SWITCHER_SHOW_ABOUT_ON_START");
-
-        assert!(!should_show_about_on_start());
+        assert!(!should_show_about_on_start_for_build(true, false));
     }
 
     #[test]
     fn about_window_can_be_shown_on_startup_for_development_layout_checks() {
-        std::env::set_var("BROWSER_SWITCHER_SHOW_ABOUT_ON_START", "1");
+        assert!(should_show_about_on_start_for_build(true, true));
+    }
 
-        assert!(should_show_about_on_start());
-
-        std::env::remove_var("BROWSER_SWITCHER_SHOW_ABOUT_ON_START");
+    #[test]
+    fn about_window_stays_hidden_in_release_builds() {
+        assert!(!should_show_about_on_start_for_build(false, true));
     }
 }
