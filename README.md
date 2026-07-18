@@ -12,6 +12,7 @@ It does not change default apps directly. It only opens the supported Windows Se
 - Marks the current default browser with a checkmark in the tray menu.
 - Opens browser-specific Default Apps settings when Windows supports the deep link.
 - Falls back to the general Default Apps settings page.
+- Can launch automatically when you sign in to Windows, controlled from the tray menu.
 - Prevents multiple running instances.
 - Includes an About window with app version and icon.
 
