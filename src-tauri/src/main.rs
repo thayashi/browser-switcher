@@ -68,10 +68,14 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     }
 
     if id == AUTOSTART_ID {
-        if autostart::toggle().is_err() {
-            let _ = open_settings_uri("ms-settings:startupapps");
-        }
-        refresh_tray_icon(app);
+        let app = app.clone();
+        std::thread::spawn(move || {
+            if autostart::toggle_on_worker_thread().is_err() {
+                let _ = open_settings_uri("ms-settings:startupapps");
+            }
+            let refresh_app = app.clone();
+            let _ = app.run_on_main_thread(move || refresh_tray_icon(&refresh_app));
+        });
         return;
     }
 
@@ -158,8 +162,8 @@ fn build_menu(
     let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
 
     menu.append(&separator)?;
-    menu.append(&about)?;
     menu.append(&autostart)?;
+    menu.append(&about)?;
     menu.append(&quit)?;
 
     Ok(menu)

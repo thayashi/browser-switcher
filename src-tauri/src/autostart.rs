@@ -12,6 +12,32 @@ pub fn toggle() -> std::io::Result<bool> {
     Ok(enabled)
 }
 
+/// Toggles startup from a dedicated MTA thread so a packaged app never blocks
+/// Tauri's menu/UI thread while Windows completes `RequestEnableAsync`.
+#[cfg(windows)]
+pub fn toggle_on_worker_thread() -> std::io::Result<bool> {
+    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
+
+    unsafe {
+        CoInitializeEx(None, COINIT_MULTITHREADED)
+            .ok()
+            .map_err(windows_error)?;
+    }
+
+    let result = toggle();
+
+    unsafe {
+        CoUninitialize();
+    }
+
+    result
+}
+
+#[cfg(not(windows))]
+pub fn toggle_on_worker_thread() -> std::io::Result<bool> {
+    toggle()
+}
+
 #[cfg(windows)]
 fn is_enabled_impl() -> std::io::Result<bool> {
     if is_packaged() {

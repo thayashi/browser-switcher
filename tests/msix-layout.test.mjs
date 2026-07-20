@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const tempDir = mkdtempSync(join(tmpdir(), "browser-switcher-msix-"));
+const packageVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 
 function readPngRgbaPixel(filePath, x, y) {
   const { rows } = readPng(filePath);
@@ -110,7 +111,7 @@ try {
     manifest,
     /Publisher="CN=2EF452DB-B9F8-45A1-8F23-32AC995C605E"/,
   );
-  assert.match(manifest, /Version="0\.1\.8\.0"/);
+  assert.ok(manifest.includes(`Version="${packageVersion}.0"`));
   assert.match(manifest, /Executable="browser-switcher\.exe"/);
   assert.match(manifest, /Category="windows\.startupTask"/);
   assert.match(manifest, /TaskId="BrowserSwitcherStartup" Enabled="false"/);

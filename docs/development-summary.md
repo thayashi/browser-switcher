@@ -8,7 +8,7 @@ Update this document when a change affects how the app works, how it is built or
 
 ## Current State
 
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 - Current app version: `0.1.8`.
 - Primary branch: `main`.
@@ -18,7 +18,7 @@ Last updated: 2026-07-17
 - The tray menu marks the current default browser by appending a checkmark to the matching browser label.
 - The tray menu rebuilds immediately before it is shown, so default-browser changes made while the app is running are reflected the next time the tray menu opens.
 - Selecting a browser opens Windows Default Apps settings through `ms-settings:` URIs.
-- The tray menu includes a user-controlled `Launch Browser Switcher at sign-in` option. Desktop installs use the current user's Run registry entry; MSIX installs use the declared Windows StartupTask.
+- The tray menu includes a user-controlled `Launch Browser Switcher at sign-in` option. Desktop installs use the current user's Run registry entry; MSIX installs use the declared Windows StartupTask. Its Windows async work runs on a dedicated MTA worker thread so toggling the item cannot block the tray UI.
 - Browser Switcher does not change default apps directly.
 - The About window is a Tauri WebView showing static HTML from `dist/index.html`.
 - The About window title bar and frame are native Windows UI.
