@@ -99,3 +99,4 @@ For documentation-only changes, at least inspect `git diff` and verify links/com
 - Keep `docs/development-summary.md` focused on current project context, dated decisions, caveats, and release notes.
 - Do not turn `docs/development-summary.md` into a line-by-line changelog.
 - Update `docs/development-summary.md` when behavior, build/release process, testing, or important Windows/Tauri assumptions change.
+- The canonical Browser Switcher Store-release Skill is `skills/browser-switcher-store-release/`; keep it aligned with material release-process changes.

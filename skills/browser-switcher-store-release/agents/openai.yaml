@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Switcher Store Release"
+  short_description: "Build and submit a verified Store update"
+  default_prompt: "Use $browser-switcher-store-release to prepare and submit the next Browser Switcher Store update."
