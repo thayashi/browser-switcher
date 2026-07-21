@@ -1,0 +1,5 @@
+# Auto-like local development: edit, test, and build inside this repository
+# without pausing. Escalations remain bounded by the workspace sandbox.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"

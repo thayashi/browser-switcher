@@ -9,6 +9,11 @@ Guidance for Codex and other development agents working in this repository.
 - Create a feature branch before making changes.
 - Prefer branch names that describe the task, for example `codex-documentation-cleanup`.
 
+## Codex Automation
+
+- `.codex/config.toml` deliberately uses workspace-write, on-request approvals, and automatic approval review so normal in-repository edits, tests, and builds can proceed autonomously.
+- Keep destructive operations and external side effects (for example, deleting data, publishing releases, or submitting to Microsoft Store certification) explicitly confirmed at the point of action.
+
 ## Project Shape
 
 - This is a Windows-focused Tauri 2 app.
