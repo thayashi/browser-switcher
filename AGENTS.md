@@ -72,6 +72,13 @@ npm run build:about
 - Rust prevents close requests so closing the About window hides it instead of exiting the tray app.
 - Using `window.close()` from the WebView can leave a blank or WebView error surface.
 
+## Tray UI Safety Rules
+
+- Treat tray-menu callbacks as Tauri UI-thread work: return immediately and never block on Windows async APIs, network I/O, process launches, or slow registry operations.
+- For Windows Runtime async calls, wait on a dedicated worker thread with the required COM apartment, then use `app.run_on_main_thread` only for UI refreshes.
+- Reproduce and manually verify the exact tray interaction fixed by a release candidate; after the action, confirm the app remains responsive and the tray menu can be reopened.
+- Keep the core tray menu order `Launch`, `About`, `Quit`; place optional settings above that group.
+
 ## Verification Expectations
 
 Before claiming a change is complete, run the smallest relevant checks. For broad changes, run:
