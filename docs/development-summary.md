@@ -106,6 +106,8 @@ Before installing a new build, fully quit any running `browser-switcher.exe` pro
 
 The 2026-10-11 release candidate is `0.1.10` (`0.1.10.0` for Store MSIX). It replaces registry-store priority with the effective Windows default-association query, fixing stale Edge checkmarks. About and Rust tests, `cargo check`, MSI/EXE builds, the Store MSIX build, and MSIX layout tests passed. Archive inspection confirmed the Partner Center identity/version and no captured WebView data. The user verified the correct checkmark and responsive tray-menu reopening in the release executable before submission. English and Japanese release notes are saved under `store/listing/`.
 
+On 2026-10-11 (America/Los_Angeles), [GitHub release `v0.1.10`](https://github.com/thayashi/browser-switcher/releases/tag/v0.1.10) was published successfully with MSI and EXE assets from release commit `f10eb1f`. Partner Center accepted Store Submission 4 (`1152921505702099319`) after validating `ToshiSoftware.BrowserSwitcher_0.1.10.0_x64.msix` and saving both English and Japanese listings. Its last observed state was **In certification**, at **Pre-processing (step 2 of 4)**, with automatic publishing configured after certification passes. Store publication is not yet confirmed. Partner Center displays the submission date as October 12, corresponding to the UTC date.
+
 ## Microsoft Store MSIX Notes
 
 Last updated: 2026-06-14
