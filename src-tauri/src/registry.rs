@@ -66,97 +66,90 @@ fn discover_browsers_impl() -> Vec<BrowserRegistration> {
 
 #[cfg(windows)]
 fn current_default_browser_protocol_id_impl() -> Option<String> {
-    read_default_browser_protocol_id_from_root(&RegKey::predef(HKEY_CURRENT_USER))
-        .or_else(read_default_browser_protocol_id_from_loaded_profile)
+    use windows::{
+        core::w,
+        Win32::{
+            System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
+            UI::Shell::{ApplicationAssociationRegistration, IApplicationAssociationRegistration},
+        },
+    };
+
+    let _apartment = AssociationQueryApartment::initialize()?;
+    let registration: IApplicationAssociationRegistration = unsafe {
+        CoCreateInstance(
+            &ApplicationAssociationRegistration,
+            None,
+            CLSCTX_INPROC_SERVER,
+        )
+        .ok()?
+    };
+
+    // Preserve HTTP priority if users configure different HTTP/HTTPS handlers.
+    // Never fall back to UserChoice/UserChoiceLatest: either can be stale.
+    query_default_protocol_id(&registration, w!("http"))
+        .or_else(|| query_default_protocol_id(&registration, w!("https")))
 }
 
 #[cfg(windows)]
-fn read_default_browser_protocol_id_from_root(root: &RegKey) -> Option<String> {
-    choose_current_default_browser_protocol_id(
-        read_prog_id_from_user_choice_latest(root, "http"),
-        read_prog_id_from_user_choice_latest(root, "https"),
-        read_prog_id_from_user_choice(root, "http"),
-        read_prog_id_from_user_choice(root, "https"),
-    )
-}
-
-fn choose_current_default_browser_protocol_id(
-    http_user_choice_latest: Option<String>,
-    https_user_choice_latest: Option<String>,
-    http_user_choice: Option<String>,
-    https_user_choice: Option<String>,
+fn query_default_protocol_id(
+    registration: &windows::Win32::UI::Shell::IApplicationAssociationRegistration,
+    protocol: windows::core::PCWSTR,
 ) -> Option<String> {
-    matching_protocol_id(&http_user_choice_latest, &https_user_choice_latest)
-        .or(http_user_choice_latest)
-        .or(https_user_choice_latest)
-        .or_else(|| matching_protocol_id(&http_user_choice, &https_user_choice))
-        .or(http_user_choice)
-        .or(https_user_choice)
-}
+    use windows::Win32::{
+        System::Com::CoTaskMemFree,
+        UI::Shell::{AL_EFFECTIVE, AT_URLPROTOCOL},
+    };
 
-fn matching_protocol_id(http: &Option<String>, https: &Option<String>) -> Option<String> {
-    let http = http.as_deref()?.trim();
-    let https = https.as_deref()?.trim();
-
-    if http.eq_ignore_ascii_case(https) && !http.is_empty() {
-        Some(http.to_string())
-    } else {
+    // Query the handler Windows would actually use, rather than registry storage.
+    let prog_id = unsafe {
+        registration
+            .QueryCurrentDefault(protocol, AT_URLPROTOCOL, AL_EFFECTIVE)
+            .ok()?
+    };
+    let value = if prog_id.is_null() {
         None
-    }
-}
+    } else {
+        unsafe { prog_id.to_string().ok() }
+    };
+    // The API allocates this string; release it even if decoding fails.
+    unsafe { CoTaskMemFree(Some(prog_id.0.cast())) };
 
-#[cfg(windows)]
-fn read_prog_id_from_user_choice_latest(root: &RegKey, protocol: &str) -> Option<String> {
-    let key = root
-        .open_subkey(format!(
-            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\{protocol}\\UserChoiceLatest\\ProgId",
-        ))
-        .ok()?;
-
-    read_trimmed_prog_id(&key)
-}
-
-#[cfg(windows)]
-fn read_prog_id_from_user_choice(root: &RegKey, protocol: &str) -> Option<String> {
-    let key = root
-        .open_subkey(format!(
-            "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\{protocol}\\UserChoice",
-        ))
-        .ok()?;
-
-    read_trimmed_prog_id(&key)
-}
-
-#[cfg(windows)]
-fn read_trimmed_prog_id(key: &RegKey) -> Option<String> {
-    key.get_value::<String, _>("ProgId")
-        .ok()
+    value
         .map(|prog_id| prog_id.trim().to_string())
         .filter(|prog_id| !prog_id.is_empty())
 }
 
 #[cfg(windows)]
-fn read_default_browser_protocol_id_from_loaded_profile() -> Option<String> {
-    let current_profile = std::env::var("USERPROFILE").ok()?;
-    let users = RegKey::predef(HKEY_USERS);
+struct AssociationQueryApartment(bool);
 
-    users
-        .enum_keys()
-        .filter_map(Result::ok)
-        .filter(|sid| !sid.ends_with("_Classes"))
-        .find_map(|sid| {
-            let user = users.open_subkey(&sid).ok()?;
-            let profile = user
-                .open_subkey("Volatile Environment")
-                .ok()
-                .and_then(|key| key.get_value::<String, _>("USERPROFILE").ok())?;
+#[cfg(windows)]
+impl AssociationQueryApartment {
+    fn initialize() -> Option<Self> {
+        use windows::Win32::{
+            Foundation::RPC_E_CHANGED_MODE,
+            System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED},
+        };
 
-            if !profile.eq_ignore_ascii_case(&current_profile) {
-                return None;
-            }
+        let result = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+        if result.is_ok() {
+            // S_OK and S_FALSE both require a matching CoUninitialize.
+            Some(Self(true))
+        } else if result == RPC_E_CHANGED_MODE {
+            // The caller already owns a different apartment (e.g. MTA).
+            Some(Self(false))
+        } else {
+            None
+        }
+    }
+}
 
-            read_default_browser_protocol_id_from_root(&user)
-        })
+#[cfg(windows)]
+impl Drop for AssociationQueryApartment {
+    fn drop(&mut self) {
+        if self.0 {
+            unsafe { windows::Win32::System::Com::CoUninitialize() };
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -495,30 +488,86 @@ fn includes_required_web_protocols(protocols: &[&str]) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn prefers_matching_user_choice_latest_over_stale_user_choice() {
-        let protocol_id = choose_current_default_browser_protocol_id(
-            Some("ChromeHTML".to_string()),
-            Some("ChromeHTML".to_string()),
-            Some("MSEdgeHTM".to_string()),
-            Some("MSEdgeHTM".to_string()),
-        );
+    #[cfg(windows)]
+    fn apartment_type() -> windows::core::Result<windows::Win32::System::Com::APTTYPE> {
+        use windows::Win32::System::Com::{CoGetApartmentType, APTTYPE, APTTYPEQUALIFIER};
 
-        assert_eq!(protocol_id.as_deref(), Some("ChromeHTML"));
+        let mut kind = APTTYPE::default();
+        let mut qualifier = APTTYPEQUALIFIER::default();
+        unsafe { CoGetApartmentType(&mut kind, &mut qualifier)? };
+        Ok(kind)
     }
 
+    #[cfg(windows)]
     #[test]
-    fn falls_back_to_matching_user_choice_when_user_choice_latest_is_unavailable() {
-        let protocol_id = choose_current_default_browser_protocol_id(
-            None,
-            None,
-            Some("FirefoxURL-308046B0AF4A39CB".to_string()),
-            Some("FirefoxURL-308046B0AF4A39CB".to_string()),
-        );
+    fn default_query_balances_com_initialization_on_a_fresh_thread() {
+        use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
 
-        assert_eq!(
-            protocol_id.as_deref(),
-            Some("FirefoxURL-308046B0AF4A39CB")
+        std::thread::spawn(|| {
+            let _ = current_default_browser_protocol_id();
+            // A leaked STA initialization would prevent switching to MTA.
+            unsafe {
+                CoInitializeEx(None, COINIT_MULTITHREADED).ok().unwrap();
+                CoUninitialize();
+            }
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn default_query_preserves_the_callers_sta_and_mta_apartments() {
+        use windows::Win32::System::Com::{
+            CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED,
+        };
+
+        for mode in [COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED] {
+            std::thread::spawn(move || {
+                unsafe { CoInitializeEx(None, mode).ok().unwrap() };
+                let before = apartment_type().unwrap();
+                for _ in 0..3 {
+                    let _ = current_default_browser_protocol_id();
+                    assert_eq!(apartment_type().unwrap(), before);
+                }
+                unsafe { CoUninitialize() };
+                // A leaked initialization would prevent changing apartments.
+                let other_mode = if mode == COINIT_APARTMENTTHREADED {
+                    COINIT_MULTITHREADED
+                } else {
+                    COINIT_APARTMENTTHREADED
+                };
+                unsafe {
+                    CoInitializeEx(None, other_mode).ok().unwrap();
+                    CoUninitialize();
+                }
+            })
+            .join()
+            .unwrap();
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Reads live Windows settings; set BROWSER_SWITCHER_EXPECT_DEFAULT_PROG_ID for verification"]
+    fn reports_current_default_browser() {
+        let expected = std::env::var("BROWSER_SWITCHER_EXPECT_DEFAULT_PROG_ID")
+            .expect("Set BROWSER_SWITCHER_EXPECT_DEFAULT_PROG_ID to the expected Windows ProgID");
+        let protocol_id = current_default_browser_protocol_id().expect("No effective browser found");
+        println!("Effective default browser ProgID: {protocol_id}");
+        assert!(protocol_id.eq_ignore_ascii_case(&expected));
+
+        let marked: Vec<_> = discover_browsers()
+            .into_iter()
+            .filter(|browser| {
+                crate::browser::browser_matches_default_protocol(browser, Some(&protocol_id))
+            })
+            .map(|browser| crate::browser::browser_menu_label(&browser, Some(&protocol_id)))
+            .collect();
+        println!("Marked browser menu labels: {marked:?}");
+        assert!(
+            !marked.is_empty(),
+            "Default browser is missing from the menu"
         );
     }
 

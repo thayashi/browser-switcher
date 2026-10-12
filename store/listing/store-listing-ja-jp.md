@@ -26,7 +26,9 @@ Browser Switcherは既定アプリの関連付けを直接変更しません。�
 
 ## What's new
 
-Microsoft Store向けの初回リリースです。
+バージョン 0.1.10
+
+Windowsで別のブラウザを既定に設定していても、トレイメニューでMicrosoft Edgeにチェックマークが付くことがある問題を修正しました。Windowsの実際の既定ブラウザ設定に基づいてチェックマークを表示します。
 
 ## Suggested category
 

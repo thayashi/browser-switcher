@@ -8,14 +8,15 @@ Update this document when a change affects how the app works, how it is built or
 
 ## Current State
 
-Last updated: 2026-07-20
+Last updated: 2026-10-11
 
-- Current app version: `0.1.9`.
+- Current app version: `0.1.10`.
 - Primary branch: `main`.
 - Feature/docs work should happen on a branch, not directly on `main`.
 - Browser Switcher is a Windows tray app built with Tauri 2 and Rust.
 - The tray menu lists installed browsers discovered from Windows registration data.
 - The tray menu marks the current default browser by appending a checkmark to the matching browser label.
+- Default-browser detection uses Windows `IApplicationAssociationRegistration::QueryCurrentDefault` with `AT_URLPROTOCOL` and `AL_EFFECTIVE`, rather than assuming either registry UserChoice store is current.
 - The tray menu rebuilds immediately before it is shown, so default-browser changes made while the app is running are reflected the next time the tray menu opens.
 - Selecting a browser opens Windows Default Apps settings through `ms-settings:` URIs.
 - The tray menu includes a user-controlled `Launch Browser Switcher at sign-in` option. Desktop installs use the current user's Run registry entry; MSIX installs use the declared Windows StartupTask. Its Windows async work runs on a dedicated MTA worker thread so toggling the item cannot block the tray UI.
@@ -97,11 +98,13 @@ dist/index.html
 The latest release build generated during development was:
 
 ```text
-Browser Switcher_0.1.7_x64_en-US.msi
-Browser Switcher_0.1.7_x64-setup.exe
+Browser Switcher_0.1.10_x64_en-US.msi
+Browser Switcher_0.1.10_x64-setup.exe
 ```
 
 Before installing a new build, fully quit any running `browser-switcher.exe` process.
+
+The 2026-10-11 release candidate is `0.1.10` (`0.1.10.0` for Store MSIX). It replaces registry-store priority with the effective Windows default-association query, fixing stale Edge checkmarks. About and Rust tests, `cargo check`, MSI/EXE builds, the Store MSIX build, and MSIX layout tests passed. Archive inspection confirmed the Partner Center identity/version and no captured WebView data. The user verified the correct checkmark and responsive tray-menu reopening in the release executable before submission. English and Japanese release notes are saved under `store/listing/`.
 
 ## Microsoft Store MSIX Notes
 
@@ -201,11 +204,25 @@ Windows icon caches can be stale. If Start menu, Startup Apps, or notification s
 
 ## Browser Discovery Notes
 
-Last updated: 2026-05-01
+Last updated: 2026-10-10
 
 Browser discovery checks Windows registration data rather than a hardcoded browser list. Entries are treated as browsers only when registration capabilities include both `http` and `https` URL associations.
 
-The current default browser marker reads `ProgId` values from the current user's `http` and `https` URL associations under `Software\Microsoft\Windows\Shell\Associations\UrlAssociations`. `UserChoiceLatest` is preferred because it has matched the Windows Default Apps UI after browser updates, including cases where `UserChoice` retained stale Edge values. `UserChoice` remains a fallback when `UserChoiceLatest` cannot be read. The app only reads these values; it does not modify Windows default app associations.
+The current default browser marker queries Windows through [`IApplicationAssociationRegistration::QueryCurrentDefault`](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-iapplicationassociationregistration-querycurrentdefault), using `AT_URLPROTOCOL` and `AL_EFFECTIVE`. HTTP retains priority, with HTTPS queried if HTTP cannot return a nonempty ProgID. If the API cannot resolve either protocol, no browser is marked. Browser discovery still reads registration capabilities from the registry; default app associations are never modified.
+
+On 2026-10-10, Windows 11 26H2 (26300.9550) returned `ChromeHTML` for both protocols through the official API and `UserChoice`, while `UserChoiceLatest\ProgId` still contained `MSEdgeHTM`. Earlier fixes had alternated the registry-store priority because stale values had been observed in each store, including before 26H2. Neither registry store is a reliable source of truth, so default detection no longer falls back to them. The exact Windows update responsible for the observed divergence has not been established.
+
+The query uses synchronous, in-process Shell COM calls with scoped initialization. Existing STA/MTA apartments are preserved, each successful COM initialization is balanced, the returned ProgID is freed with `CoTaskMemFree`, and the interface is released before the apartment guard. This does not use Windows Runtime async waits. Automated tests cover COM apartment ownership. To verify live default detection and the resulting browser menu labels without changing defaults or starting the tray app, set the expected ProgID and run the opt-in diagnostic:
+
+```powershell
+$env:BROWSER_SWITCHER_EXPECT_DEFAULT_PROG_ID = "ChromeHTML"
+cargo test --manifest-path src-tauri/Cargo.toml --lib reports_current_default_browser -- --ignored --nocapture
+Remove-Item Env:BROWSER_SWITCHER_EXPECT_DEFAULT_PROG_ID
+```
+
+Use the ProgID expected for the current Windows setting. A release candidate also needs a manual tray check: confirm the correct marker, change the default through Windows Settings, reopen the tray menu, and confirm it remains responsive.
+
+The 2026-10-10 change passed the About contract, all 26 regular Rust tests, `cargo check`, and a development executable build. The live diagnostic passed with `ChromeHTML` and the sole marked label `Google Chrome ✓`. The installed Store app was not replaced, and manual tray interaction was not verified during this source-code fix.
 
 Packaged/AppModel browsers such as Arc use the `registeredAUMID` Default Apps settings parameter instead of `registeredAppMachine`. Arc's AppModel registration is discovered from the package repository and opened with its Application User Model ID.
 

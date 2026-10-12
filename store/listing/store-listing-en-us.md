@@ -26,7 +26,9 @@ Browser Switcher does not change default apps directly. It sends you to Windows 
 
 ## What's new
 
-Initial Microsoft Store release.
+Version 0.1.10
+
+Fixed an issue where the tray menu could mark Microsoft Edge as the default browser even when a different browser was selected in Windows. The checkmark now follows the effective Windows default-browser setting.
 
 ## Suggested category
 
